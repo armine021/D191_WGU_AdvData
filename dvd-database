@@ -1,0 +1,108 @@
+-- create procedure to generate required reports on low frequency customers
+-- to execute, enter "call frequency_reports();"
+CREATE OR REPLACE PROCEDURE frequency_reports()
+language plpgsql
+AS $BODY$
+begin
+
+-- erase the table if it already exists (ensures data is current to the date query is performed)
+DROP TABLE IF EXISTS customer_analysis;
+
+-- create the empty table
+CREATE TABLE IF NOT EXISTS customer_analysis (
+	customer_id INT NOT NULL,
+	email VARCHAR,
+	postal_code INT,
+	national_area INT,
+-- need to add a transformation here like CASE or if/then to change word to another or truncate
+	customer_total_rentals INT,
+	customer_frequency_low BOOLEAN DEFAULT 0,
+	PRIMARY KEY (customer_id),
+	FOREIGN KEY (customer_id)
+		REFERENCES customer (customer_id),
+);
+
+-- add values to the table from existing ones in the database
+INSERT INTO customer_analysis
+SELECT
+	customer.customer_id,
+	customer.email,
+	address.postal_code,
+	substr(address.postal_code, 0, 1)
+	count(rental.customer_id) as customer_total_rentals
+	-- might be an issue here with the boolean
+FROM
+	rental
+-- inner join using the customer ID across 3 tables (customer, rental, and address)
+INNER JOIN customer
+	ON customer.customer_id = rental.customer_id
+INNER JOIN customer
+	ON customer.address_id = address.address_id
+
+-- erase the table if it already exists (ensures data is current to the date query is performed)
+DROP TABLE IF EXISTS customer_summary;
+
+-- create the empty table
+CREATE TABLE IF NOT EXISTS customer_summary (
+	customer_id INT NOT NULL,
+	customer_total_rentals INT,
+	PRIMARY KEY (customer_id),
+	FOREIGN KEY (customer_id)
+		REFERENCES customer (customer_id)
+);
+
+-- add values to the table from existing ones in the database
+INSERT INTO customer_summary
+SELECT
+	customer_id,
+	customer_total_rentals
+FROM
+	customer_analysis
+WHERE customer_analysis.customer_frequency_low = 1
+-- inner join using the customer ID across 2 tables (customer and rental)
+ORDER BY customer_total_rentals DESC
+INNER JOIN customer
+	ON customer.customer_id = rental.customer_id;
+COMMIT;
+END;
+$BODY$;	
+
+
+-- function to update the customer_analysis table and calculate the average rental amount
+CREATE OR REPLACE FUNCTION calculate_average_rentals()
+	LANGUAGE plpgsql
+AS $BODY$
+DECLARE 
+	customer_average_rentals integer;
+BEGIN
+	SELECT average(customer_total_rentals)
+	INTO customer_average_rentals
+	FROM customer_analysis
+RETURN
+	customer_average_rentals;
+END;
+$BODY$
+
+-- trigger function to set customer_frequency_low to true if the customer_total_rentals is less than average
+CREATE OR REPLACE FUNCTION customer_frequency_check()
+	RETURNS TRIGGER
+	LANGUAGE plpgsql
+AS $BODY$
+BEGIN
+	UPDATE customer_analysis
+	SET customer_frequency_low = 1
+	WHERE customer_total_rentals < calculate_average_rentals()
+END;
+$BODY$
+
+-- trigger itself
+CREATE OR REPLACE TRIGGER frequency_updater
+BEFORE UPDATE	
+on customer_analysis
+FOR EACH ROW
+EXECUTE PROCEDURE customer_frequency_check();
+
+-- extra code to manually set a customer to low frequency
+UPDATE customer_analysis
+SET customer_frequency_low = 1
+WHERE customer_id = 42;
