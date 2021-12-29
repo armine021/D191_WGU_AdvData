@@ -14,12 +14,11 @@ CREATE TABLE IF NOT EXISTS customer_analysis (
 	email VARCHAR,
 	postal_code INT,
 	national_area INT,
--- need to add a transformation here like CASE or if/then to change word to another or truncate
 	customer_total_rentals INT,
 	customer_frequency_low BOOLEAN DEFAULT 0,
 	PRIMARY KEY (customer_id),
 	FOREIGN KEY (customer_id)
-		REFERENCES customer (customer_id),
+		REFERENCES customer (customer_id)
 );
 
 -- add values to the table from existing ones in the database
@@ -28,9 +27,8 @@ SELECT
 	customer.customer_id,
 	customer.email,
 	address.postal_code,
-	substr(address.postal_code, 0, 1)
-	count(rental.customer_id) as customer_total_rentals
-	-- might be an issue here with the boolean
+	substr(address.postal_code, 0, 1),
+	count(customer_id) as customer_total_rentals
 FROM
 	rental
 -- inner join using the customer ID across 3 tables (customer, rental, and address)
@@ -38,6 +36,7 @@ INNER JOIN customer
 	ON customer.customer_id = rental.customer_id
 INNER JOIN customer
 	ON customer.address_id = address.address_id
+;
 
 -- erase the table if it already exists (ensures data is current to the date query is performed)
 DROP TABLE IF EXISTS customer_summary;
@@ -58,11 +57,11 @@ SELECT
 	customer_total_rentals
 FROM
 	customer_analysis
+INNER JOIN customer
+	ON customer.customer_id = rental.customer_id
 WHERE customer_analysis.customer_frequency_low = 1
 -- inner join using the customer ID across 2 tables (customer and rental)
-ORDER BY customer_total_rentals DESC
-INNER JOIN customer
-	ON customer.customer_id = rental.customer_id;
+ORDER BY customer_total_rentals DESC;
 COMMIT;
 END;
 $BODY$;	
