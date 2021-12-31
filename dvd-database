@@ -12,13 +12,10 @@ DROP TABLE IF EXISTS customer_details;
 CREATE TABLE IF NOT EXISTS customer_details (
 	customer_id INT NOT NULL,
 	email VARCHAR,
-	postal_code INT,
-	national_area INT,
+	postal_code VARCHAR,
+	national_area VARCHAR,
 	customer_total_rentals INT,
-	customer_frequency_low BOOLEAN DEFAULT 0,
-	PRIMARY KEY (customer_id),
-	FOREIGN KEY (customer_id)
-		REFERENCES customer (customer_id)
+	customer_frequency_low BOOLEAN DEFAULT false
 );
 
 -- add values to the table from existing ones in the database
@@ -27,15 +24,17 @@ SELECT
 	customer.customer_id,
 	customer.email,
 	address.postal_code,
-	substr(address.postal_code, 0, 1),
-	count(customer_id) as customer_total_rentals
+	substr(address.postal_code, 1, 1),
+	count(rental.customer_id) as customer_total_rentals,
+	customer_frequency_checker()
 FROM
 	rental
 -- inner join using the customer ID across 3 tables (customer, rental, and address)
 INNER JOIN customer
 	ON customer.customer_id = rental.customer_id
-INNER JOIN customer
+INNER JOIN address
 	ON customer.address_id = address.address_id
+GROUP BY customer.customer_id, address.postal_code
 ;
 
 -- erase the table if it already exists (ensures data is current to the date query is performed)
@@ -57,15 +56,14 @@ SELECT
 	customer_total_rentals
 FROM
 	customer_details
-INNER JOIN customer
-	ON customer.customer_id = rental.customer_id
-WHERE customer_details.customer_frequency_low = 1
 -- inner join using the customer ID across 2 tables (customer and rental)
+--INNER JOIN customer
+--	ON customer.customer_id = rental.customer_id
+-- WHERE customer_details.customer_frequency_low = true
 ORDER BY customer_total_rentals DESC;
-COMMIT;
+-- COMMIT;
 END;
 $BODY$;	
-
 
 -- function to update the customer_details table and calculate the average rental amount
 -- this function should be run quarterly
@@ -84,6 +82,39 @@ RETURN
 END;
 $BODY$;
 
+-- function to determine if a customer is low frequency or not
+-- this function should be run quarterly
+CREATE OR REPLACE FUNCTION customer_frequency_checker(customer_total_rentals)
+	RETURNS boolean
+	LANGUAGE plpgsql
+AS $BODY$
+BEGIN
+	-- SELECT customer_total_rentals 
+	-- FROM customer_details 
+	IF customer_total_rentals < customer_average_rentals()
+	THEN
+		RETURN
+			true
+	ELSE
+		RETURN
+			false
+END;
+$BODY$;
+
+
+-- create the reports
+call frequency_reports();
+
+-- SELECT * FROM pg_roles
+select * from customer_details LIMIT 5;
+-- select * from customer_summary LIMIT 5;
+
+
+
+
+
+-- TODO: make the trigger work
+
 -- trigger function to set customer_frequency_low to true if the customer_total_rentals is less than average
 CREATE OR REPLACE FUNCTION customer_frequency_check()
 	RETURNS TRIGGER
@@ -92,20 +123,14 @@ AS $BODY$
 BEGIN
 	UPDATE customer_details
 	SET customer_frequency_low = 1
-	WHERE customer_total_rentals < calculate_average_rentals()
-RETURN
-	NULL;
+	WHERE customer_total_rentals < calculate_average_rentals();
+RETURN NULL; 
 END;
 $BODY$;
 
 -- trigger itself
-CREATE OR REPLACE TRIGGER frequency_updater
+CREATE TRIGGER frequency_updater
 BEFORE UPDATE	
 on customer_details
 FOR EACH ROW
 EXECUTE PROCEDURE customer_frequency_check();
-
--- extra code to manually set a customer to low frequency
-UPDATE customer_details
-SET customer_frequency_low = 1
-WHERE customer_id = 42;
