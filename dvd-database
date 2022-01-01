@@ -1,14 +1,15 @@
--- create procedure to generate required reports on low frequency customers
--- to execute, enter "call total_rentals_reports();"
+-- programming environment: pgAdmin 4, procedural programming language PL/pgSQL, enhanced PostGRE SQL to create server objects taht store multiple statements
+
+-- create procedure to generate detail and summary reports on customers
 CREATE OR REPLACE PROCEDURE total_rentals_reports()
-language plpgsql
+language PLpgSQL
 AS $BODY$
 begin
 
 -- erase the table if it already exists (ensures data is current to the date query is performed)
 DROP TABLE IF EXISTS customer_details;
 
--- create the empty table
+-- create the empty details table
 CREATE TABLE IF NOT EXISTS customer_details (
 	customer_id INT NOT NULL,
 	email VARCHAR,
@@ -19,6 +20,7 @@ CREATE TABLE IF NOT EXISTS customer_details (
 );
 
 -- add values to the table from existing ones in the database
+-- join using the customer ID to unite information on a customer, their rentals, and their address
 INSERT INTO customer_details
 SELECT
 	customer.customer_id,
@@ -39,7 +41,7 @@ GROUP BY customer.customer_id, address.postal_code
 -- erase the table if it already exists (ensures data is current to the date query is performed)
 DROP TABLE IF EXISTS customer_summary;
 
--- create the empty table
+-- create the empty summary table
 CREATE TABLE IF NOT EXISTS customer_summary (
 	customer_id INT NOT NULL,
 	customer_total_rentals INT,
@@ -49,6 +51,7 @@ CREATE TABLE IF NOT EXISTS customer_summary (
 ); 
 
 -- add values to the table from existing ones in the database
+-- limit the values added to this table as customers that have not yet received a discount and ones only from a specified national area
 INSERT INTO customer_summary
 SELECT
 	customer_id,
@@ -67,13 +70,14 @@ $BODY$;
 -- create the reports
 call total_rentals_reports();
 
-select * from customer_details LIMIT 5;
---select * from customer_summary LIMIT 5;
+-- troubleshoot issues with the tables - will return 5 random records from the specified table
+-- select * from customer_details LIMIT 5;
+-- select * from customer_summary LIMIT 5;
 
 -- trigger function to update both the detail and summary report
 CREATE OR REPLACE FUNCTION refresh_reports()
 	RETURNS TRIGGER
-	LANGUAGE plpgsql
+	LANGUAGE PLpgSQL
 AS $BODY$
 BEGIN
 	call total_rentals_reports();
