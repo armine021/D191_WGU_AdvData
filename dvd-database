@@ -1,6 +1,6 @@
 -- create procedure to generate required reports on low frequency customers
--- to execute, enter "call frequency_reports();"
-CREATE OR REPLACE PROCEDURE frequency_reports()
+-- to execute, enter "call total_rentals_reports();"
+CREATE OR REPLACE PROCEDURE total_rentals_reports()
 language plpgsql
 AS $BODY$
 begin
@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS customer_details (
 	postal_code VARCHAR,
 	national_area VARCHAR,
 	customer_total_rentals INT,
-	customer_frequency_low BOOLEAN DEFAULT false
+	customer_sent_discount BOOLEAN DEFAULT false
 );
 
 -- add values to the table from existing ones in the database
@@ -25,8 +25,7 @@ SELECT
 	customer.email,
 	address.postal_code,
 	substr(address.postal_code, 1, 1),
-	count(rental.customer_id) as customer_total_rentals,
-	customer_frequency_checker()
+	count(rental.customer_id) as customer_total_rentals
 FROM
 	rental
 -- inner join using the customer ID across 3 tables (customer, rental, and address)
@@ -56,15 +55,46 @@ SELECT
 	customer_total_rentals
 FROM
 	customer_details
--- inner join using the customer ID across 2 tables (customer and rental)
---INNER JOIN customer
---	ON customer.customer_id = rental.customer_id
--- WHERE customer_details.customer_frequency_low = true
-ORDER BY customer_total_rentals DESC;
+WHERE 
+	customer_details.customer_sent_discount = false AND
+	-- change this national area value to target other regions
+	customer_details.national_area = '1'
+ORDER BY customer_total_rentals ASC;
 -- COMMIT;
 END;
 $BODY$;	
 
+-- create the reports
+call total_rentals_reports();
+
+select * from customer_details LIMIT 5;
+--select * from customer_summary LIMIT 5;
+
+-- trigger function to update both the detail and summary report
+CREATE OR REPLACE FUNCTION refresh_reports()
+	RETURNS TRIGGER
+	LANGUAGE plpgsql
+AS $BODY$
+BEGIN
+	call total_rentals_reports();
+RETURN NULL; 
+END;
+$BODY$;
+
+-- create the trigger itself, which happens any time a record is added to the rentals table
+-- if trigger already exists, use this to remove the old trigger:
+-- DROP TRIGGER refresh_reports_trigger;
+CREATE TRIGGER refresh_reports_trigger
+AFTER INSERT
+on rental
+FOR EACH ROW
+EXECUTE PROCEDURE refresh_reports();
+
+
+
+
+-- TODO: didn't use this in the end
+/*
 -- function to update the customer_details table and calculate the average rental amount
 -- this function should be run quarterly
 CREATE OR REPLACE FUNCTION calculate_average_rentals()
@@ -74,7 +104,7 @@ AS $BODY$
 DECLARE 
 	customer_average_rentals integer;
 BEGIN
-	SELECT average(customer_total_rentals)
+	SELECT AVG(customer_total_rentals)
 	INTO customer_average_rentals
 	FROM customer_details;
 RETURN
@@ -84,53 +114,18 @@ $BODY$;
 
 -- function to determine if a customer is low frequency or not
 -- this function should be run quarterly
-CREATE OR REPLACE FUNCTION customer_frequency_checker(customer_total_rentals)
+CREATE OR REPLACE FUNCTION customer_frequency_checker()
 	RETURNS boolean
 	LANGUAGE plpgsql
 AS $BODY$
 BEGIN
-	-- SELECT customer_total_rentals 
-	-- FROM customer_details 
-	IF customer_total_rentals < customer_average_rentals()
-	THEN
-		RETURN
-			true
-	ELSE
-		RETURN
-			false
-END;
+	SELECT customer_total_rentals 
+	CASE
+		WHEN customer_total_rentals < customer_average_rentals()
+			THEN RETURN true
+		WHEN customer_total_rentals >= customer_average_rentals()
+			THEN RETURN false
+	END;
+	FROM customer_details 
 $BODY$;
-
-
--- create the reports
-call frequency_reports();
-
--- SELECT * FROM pg_roles
-select * from customer_details LIMIT 5;
--- select * from customer_summary LIMIT 5;
-
-
-
-
-
--- TODO: make the trigger work
-
--- trigger function to set customer_frequency_low to true if the customer_total_rentals is less than average
-CREATE OR REPLACE FUNCTION customer_frequency_check()
-	RETURNS TRIGGER
-	LANGUAGE plpgsql
-AS $BODY$
-BEGIN
-	UPDATE customer_details
-	SET customer_frequency_low = 1
-	WHERE customer_total_rentals < calculate_average_rentals();
-RETURN NULL; 
-END;
-$BODY$;
-
--- trigger itself
-CREATE TRIGGER frequency_updater
-BEFORE UPDATE	
-on customer_details
-FOR EACH ROW
-EXECUTE PROCEDURE customer_frequency_check();
+*/
