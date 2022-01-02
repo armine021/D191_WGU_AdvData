@@ -91,7 +91,7 @@ RETURN NULL;
 END;
 $BODY$;
 
--- create the trigger itself, which happens any time a record is added to the rentals table
+-- create the trigger itself, which happens any time a record is updated in the details table
 -- if trigger already exists, use this to remove the old trigger:
 -- DROP TRIGGER refresh_reports_trigger;
 CREATE TRIGGER refresh_reports_trigger
