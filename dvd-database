@@ -40,7 +40,7 @@ GROUP BY customer.customer_id, address.postal_code
 ;
 
 -- troubleshoot issues with the tables - will return 5 random records from the specified table
-select * from customer_details LIMIT 5;
+-- select * from customer_details LIMIT 5;
 
 -- erase the table if it already exists (ensures data is current to the date query is performed)
 DROP TABLE IF EXISTS customer_summary;
@@ -71,14 +71,14 @@ END;
 $BODY$;	
 
 -- troubleshoot issues with the tables - will return 5 random records from the specified table
-select * from customer_summary LIMIT 5;
+-- select * from customer_summary LIMIT 5;
 
 -- create the reports
 call total_rentals_reports();
 
 -- troubleshoot issues with the tables - will return 5 random records from the specified table
 -- select * from customer_details LIMIT 5;
---select * from customer_summary LIMIT 5;
+-- select * from customer_summary LIMIT 5;
 
 -- trigger function to update both the detail and summary report
 CREATE OR REPLACE FUNCTION refresh_reports()
@@ -91,51 +91,11 @@ RETURN NULL;
 END;
 $BODY$;
 
--- create the trigger itself, which happens any time a record is updated in the details table
+-- create the trigger itself, which happens any time a record is updates in the details table
 -- if trigger already exists, use this to remove the old trigger:
 -- DROP TRIGGER refresh_reports_trigger;
 CREATE TRIGGER refresh_reports_trigger
 AFTER UPDATE
-on customer-details
+on customer_details
 FOR EACH ROW
 EXECUTE PROCEDURE refresh_reports();
-
-
-
-
--- TODO: didn't use this in the end
-/*
--- function to update the customer_details table and calculate the average rental amount
--- this function should be run quarterly
-CREATE OR REPLACE FUNCTION calculate_average_rentals()
-	RETURNS int
-	LANGUAGE plpgsql
-AS $BODY$
-DECLARE 
-	customer_average_rentals integer;
-BEGIN
-	SELECT AVG(customer_total_rentals)
-	INTO customer_average_rentals
-	FROM customer_details;
-RETURN
-	customer_average_rentals;
-END;
-$BODY$;
-
--- function to determine if a customer is low frequency or not
--- this function should be run quarterly
-CREATE OR REPLACE FUNCTION customer_frequency_checker()
-	RETURNS boolean
-	LANGUAGE plpgsql
-AS $BODY$
-BEGIN
-	SELECT customer_total_rentals 
-	CASE
-		WHEN customer_total_rentals < customer_average_rentals()
-			THEN RETURN true
-		WHEN customer_total_rentals >= customer_average_rentals()
-			THEN RETURN false
-	END;
-	FROM customer_details 
-$BODY$;
-*/
