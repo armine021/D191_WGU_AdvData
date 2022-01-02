@@ -1,4 +1,4 @@
--- programming environment: pgAdmin 4, procedural programming language PL/pgSQL, enhanced PostGRE SQL to create server objects taht store multiple statements
+-- programming environment: pgAdmin 4, procedural programming language PL/pgSQL, enhanced PostGRE SQL to create server objects that stores multiple statements
 
 -- create procedure to generate detail and summary reports on customers
 CREATE OR REPLACE PROCEDURE total_rentals_reports()
