@@ -95,8 +95,8 @@ $BODY$;
 -- if trigger already exists, use this to remove the old trigger:
 -- DROP TRIGGER refresh_reports_trigger;
 CREATE TRIGGER refresh_reports_trigger
-AFTER INSERT
-on rental
+AFTER UPDATE
+on customer-details
 FOR EACH ROW
 EXECUTE PROCEDURE refresh_reports();
 
