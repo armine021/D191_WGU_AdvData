@@ -1,4 +1,5 @@
--- programming environment: pgAdmin 4, procedural programming language PL/pgSQL, enhanced PostGRE SQL to create server objects that stores multiple statements
+-- programming environment: pgAdmin procedural programming language PL/pgSQL
+-- enhanced PostGRE SQL to create server objects that stores multiple statements
 
 -- create procedure to generate detail and summary reports on customers
 CREATE OR REPLACE PROCEDURE total_rentals_reports()
@@ -38,6 +39,9 @@ INNER JOIN address
 GROUP BY customer.customer_id, address.postal_code
 ;
 
+-- troubleshoot issues with the tables - will return 5 random records from the specified table
+select * from customer_details LIMIT 5;
+
 -- erase the table if it already exists (ensures data is current to the date query is performed)
 DROP TABLE IF EXISTS customer_summary;
 
@@ -63,16 +67,18 @@ WHERE
 	-- change this national area value to target other regions
 	customer_details.national_area = '1'
 ORDER BY customer_total_rentals ASC;
--- COMMIT;
 END;
 $BODY$;	
+
+-- troubleshoot issues with the tables - will return 5 random records from the specified table
+select * from customer_summary LIMIT 5;
 
 -- create the reports
 call total_rentals_reports();
 
 -- troubleshoot issues with the tables - will return 5 random records from the specified table
 -- select * from customer_details LIMIT 5;
--- select * from customer_summary LIMIT 5;
+--select * from customer_summary LIMIT 5;
 
 -- trigger function to update both the detail and summary report
 CREATE OR REPLACE FUNCTION refresh_reports()
